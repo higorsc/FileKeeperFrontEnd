@@ -49,52 +49,59 @@ export default function EncryptionPage() {
         return returnedArray;
     }
 
-    const SubmitFile = async () => {
-        var formData = new FormData();
+    function wait(milliseconds) {
+        return new Promise(resolve => setTimeout(resolve, milliseconds));
+      }
 
-        formData.append("form", file);
-        formData.append("Teste", "TestValue");
-        //formData.set("form", file!);
-        //formData.set("Teste", "TestValue");
-
+    const SubmitFileViaStreaming = async () => {
         const stream = new ReadableStream({
             async start(controller) {
               
                 var fileBytes = new Uint8Array(await file.arrayBuffer());
-                //var fileBytes = new TextEncoder().encode(await file.arrayBuffer());
-                //var fileBytes = await file.arrayBuffer();
                 var offset = 0;
                 var remaining = file.size;
-                var batch = 2046;
-
+                var batch = ((1024 * 8192) - 2);
+                console.log(fileBytes.length);
                 while(remaining != 0)
                 {                                 
                     var slice = InclusiveSlice(fileBytes, offset, batch);
-                    //var slice = new TextEncoder().encode('Teste');
-                    //controller.enqueue(JSON.stringify(slice));
                     controller.enqueue(JSON.stringify(slice));
-                    //controller.enqueue(slice);
-                    //controller.enqueue('<EOC>');
                     console.log(JSON.stringify(slice));
                     remaining -= batch;
                     offset += batch;
-                    batch = (remaining - batch) >= 2046 ? 2046 : remaining;
+                    batch = (remaining - batch) >= batch ? batch : remaining;
                 }
-
+                controller.enqueue(JSON.stringify('Teste'));
                 controller.close();
             },
           }).pipeThrough(new TextEncoderStream());
-        
-        //console.log(formData.values().next());
 
         var fileFormat = fileName.substring(fileName.lastIndexOf('.'), fileName.length);
         console.log();
 
         var response = await fetch('https://localhost:7126/Encryption/ReceiveStream?format=' + fileFormat, {
             method : 'POST',
-            body : stream,//file?.stream(),
+            body : stream,
             headers : {
-                "content-type": "application/json",
+                //"content-type": "application/json",
+                'Content-Type': 'application/octet-stream',
+            },
+            duplex : 'half'
+
+        })
+        .then(async (response) => console.log(await response.json()))
+        .catch(error => console.log(error))
+    }
+
+    const SubmitFileAsStream = async () =>
+    {
+        var fileFormat = fileName.substring(fileName.lastIndexOf('.'), fileName.length);
+
+        var response = await fetch('https://localhost:7126/Encryption/ReceiveStream?format=' + fileFormat, {
+            method : 'POST',
+            body : file?.stream(),
+            headers : {
+                'Content-Type': 'application/octet-stream',
             },
             duplex : 'half'
 
@@ -140,7 +147,8 @@ export default function EncryptionPage() {
                 }
                 }></input>
                 <input type="button" value={'Submit'} onClick={e => /*SubmitFile()*/ SubmitFileAsForm()}></input>
-                <input type="button" value={'Submit via Streaming'} onClick={e => SubmitFile()}></input>
+                <input type="button" value={'Submit via Streaming'} onClick={e => SubmitFileViaStreaming()}></input>
+                <input type="button" value={'Submit as Stream'} onClick={e => SubmitFileAsStream()}></input>
 
             </div>
         </>
